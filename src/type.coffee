@@ -49,13 +49,20 @@ module.exports = class Type extends Emitter
       resource
 
   _getByIDs: (ids, otherArgs...) ->
-    requests = for id in ids
+    {toQuery, resources} = ids.reduce(((accum, id) =>
       if id of @_resourcesCache and (otherArgs.length is 0 or not otherArgs[0]?)
-        Promise.resolve @_resourcesCache[id]
+        accum.resources.push Promise.resolve @_resourcesCache[id]
       else
-        @_client.get(@_getURL(id), otherArgs...).then ([resource]) ->
-          resource
-    Promise.all requests
+        accum.toQuery.push id
+      accum),
+      {toQuery: [], resources: []})
+    if toQuery.length is 1
+      resources.push @_client.get(@_getURL(toQuery[0]), otherArgs...).then ([resource]) ->
+        resource
+    else if toQuery.length > 1
+      resources.push @_getByQuery(ids: toQuery.join(","), otherArgs...)
+
+    Promise.all(resources).then => @_getByIDs ids
 
   _getByQuery: (query, otherArgs...) ->
     @_client.get @_getURL(), query, otherArgs...

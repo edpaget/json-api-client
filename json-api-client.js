@@ -1024,26 +1024,37 @@ module.exports = Type = (function(superClass) {
   };
 
   Type.prototype._getByIDs = function() {
-    var id, ids, otherArgs, requests;
+    var ids, otherArgs, ref, ref1, resources, toQuery;
     ids = arguments[0], otherArgs = 2 <= arguments.length ? slice.call(arguments, 1) : [];
-    requests = (function() {
-      var i, len, ref, results;
-      results = [];
-      for (i = 0, len = ids.length; i < len; i++) {
-        id = ids[i];
-        if (id in this._resourcesCache && (otherArgs.length === 0 || (otherArgs[0] == null))) {
-          results.push(Promise.resolve(this._resourcesCache[id]));
+    ref = ids.reduce(((function(_this) {
+      return function(accum, id) {
+        if (id in _this._resourcesCache && (otherArgs.length === 0 || (otherArgs[0] == null))) {
+          accum.resources.push(Promise.resolve(_this._resourcesCache[id]));
         } else {
-          results.push((ref = this._client).get.apply(ref, [this._getURL(id)].concat(slice.call(otherArgs))).then(function(arg) {
-            var resource;
-            resource = arg[0];
-            return resource;
-          }));
+          accum.toQuery.push(id);
         }
-      }
-      return results;
-    }).call(this);
-    return Promise.all(requests);
+        return accum;
+      };
+    })(this)), {
+      toQuery: [],
+      resources: []
+    }), toQuery = ref.toQuery, resources = ref.resources;
+    if (toQuery.length === 1) {
+      resources.push((ref1 = this._client).get.apply(ref1, [this._getURL(toQuery[0])].concat(slice.call(otherArgs))).then(function(arg) {
+        var resource;
+        resource = arg[0];
+        return resource;
+      }));
+    } else if (toQuery.length > 1) {
+      resources.push(this._getByQuery.apply(this, [{
+        ids: toQuery.join(",")
+      }].concat(slice.call(otherArgs))));
+    }
+    return Promise.all(resources).then((function(_this) {
+      return function() {
+        return _this._getByIDs(ids);
+      };
+    })(this));
   };
 
   Type.prototype._getByQuery = function() {
